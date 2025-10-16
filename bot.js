@@ -1421,12 +1421,10 @@ async function handleEmailRuleType(env, chatId, ruleType) {
     
     switch (ruleType) {
         case 'forward':
-            message += `Kirim pattern email yang akan diteruskan:\n\n`;
-            message += `Contoh:\n`;
-            message += `• \`info\` → untuk info@${zoneData.name}\n`;
-            message += `• \`sales\` → untuk sales@${zoneData.name}\n`;
-            message += `• \`*\` → untuk semua email (catch-all)\n\n`;
-            message += `Kirim pattern email:`;
+            message += `Kirim prefix email yang akan diteruskan, diikuti dengan alamat email tujuan, dipisahkan oleh spasi.\n\n`;
+            message += `Contoh: \`info email.pribadi@gmail.com\`\n\n`;
+            message += `Ini akan meneruskan email dari \`info@${zoneData.name}\` ke \`email.pribadi@gmail.com\`.\n\n`;
+            message += `Kirim prefix dan email tujuan:`;
             break;
             
         case 'catch_all':
@@ -1448,31 +1446,42 @@ async function handleEmailRuleType(env, chatId, ruleType) {
     await sendMessage(chatId, message, { parse_mode: 'Markdown' });
 }
 
-async function handleEmailDestination(env, chatId, destination) {
+async function handleEmailDestination(env, chatId, text) {
     const ruleType = await env.TEST.get(`email_rule_type_${chatId}`);
     const zoneData = await getZoneData(env, chatId);
-    
-    await env.TEST.put(`email_destination_${chatId}`, destination);
-    
+
     let message = `✅ *Step 3/3: Konfirmasi Rule*\n\n`;
     message += `*Domain:* ${zoneData.name}\n`;
     message += `*Tipe Rule:* ${getRuleTypeName(ruleType)}\n`;
-    
+
     switch (ruleType) {
         case 'forward':
-            message += `*Pattern:* ${destination}\n`;
-            message += `*Email:* ${destination}@${zoneData.name}\n\n`;
-            message += `Email akan diteruskan ke tujuan yang akan ditentukan.`;
-            break;
+            const parts = text.split(' ');
+            if (parts.length !== 2 || !parts[1].includes('@')) {
+                await sendMessage(chatId, "❌ Format tidak valid. Harap kirim prefix dan email tujuan dipisahkan oleh spasi.");
+                return;
+            }
+            const prefix = parts[0];
+            const destinationEmail = parts[1];
             
+            await env.TEST.put(`email_prefix_${chatId}`, prefix);
+            await env.TEST.put(`email_destination_${chatId}`, destinationEmail);
+
+            message += `*Dari:* ${prefix}@${zoneData.name}\n`;
+            message += `*Ke:* ${destinationEmail}\n\n`;
+            message += `Email akan diteruskan ke alamat tujuan.`;
+            break;
+
         case 'catch_all':
-            message += `*Tujuan:* ${destination}\n\n`;
-            message += `Semua email yang tidak ada rulenya akan diteruskan ke ${destination}`;
+            await env.TEST.put(`email_destination_${chatId}`, text);
+            message += `*Tujuan:* ${text}\n\n`;
+            message += `Semua email yang tidak ada rulenya akan diteruskan ke ${text}`;
             break;
             
         case 'drop':
-            message += `*Pattern:* ${destination}\n`;
-            message += `*Email:* ${destination}@${zoneData.name}\n\n`;
+            await env.TEST.put(`email_destination_${chatId}`, text);
+            message += `*Pattern:* ${text}\n`;
+            message += `*Email:* ${text}@${zoneData.name}\n\n`;
             message += `Email akan di-block/drop secara permanen.`;
             break;
     }
@@ -1499,25 +1508,26 @@ async function createEmailRule(env, chatId) {
     
     const ruleType = await env.TEST.get(`email_rule_type_${chatId}`);
     const destination = await env.TEST.get(`email_destination_${chatId}`);
+    const prefix = await env.TEST.get(`email_prefix_${chatId}`);
     
     let ruleData = {};
     
     switch (ruleType) {
         case 'forward':
             ruleData = {
-                name: `Forward ${destination}`,
+                name: `Forward ${prefix}`,
                 enabled: true,
                 matchers: [
                     {
                         type: 'literal',
                         field: 'to',
-                        value: `${destination}@${zoneData.name}`
+                        value: `${prefix}@${zoneData.name}`
                     }
                 ],
                 actions: [
                     {
                         type: 'forward',
-                        value: ['your-email@gmail.com'] // Ini perlu disesuaikan atau terserah anda wkwk
+                        value: [destination]
                     }
                 ]
             };
