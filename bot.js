@@ -433,11 +433,9 @@ class CloudflareAPIClient {
 
     async enableEmailRouting(zoneId) {
         try {
-            const payload = { enabled: true };
-            const response = await fetch(`${this.baseUrl}/zones/${zoneId}/email/routing`, {
+            const response = await fetch(`${this.baseUrl}/zones/${zoneId}/email/routing/enable`, {
                 method: 'POST',
-                headers: this.headers,
-                body: JSON.stringify(payload)
+                headers: this.headers
             });
             return await response.json();
         } catch (error) {
@@ -448,11 +446,9 @@ class CloudflareAPIClient {
 
     async disableEmailRouting(zoneId) {
         try {
-            const payload = { enabled: false };
-            const response = await fetch(`${this.baseUrl}/zones/${zoneId}/email/routing`, {
+            const response = await fetch(`${this.baseUrl}/zones/${zoneId}/email/routing/disable`, {
                 method: 'POST',
-                headers: this.headers,
-                body: JSON.stringify(payload)
+                headers: this.headers
             });
             return await response.json();
         } catch (error) {
@@ -531,12 +527,6 @@ async function handleTelegramWebhook(request, env) {
             const chatId = update.message.chat.id;
             const text = update.message.text || '';
             const fromId = update.message.from.id;
-
-            // Verify admin access
-            if (!ADMIN_IDS.includes(fromId)) {
-                await sendMessage(chatId, '❌ Anda tidak memiliki akses!');
-                return new Response('OK');
-            }
 
             // Handle commands
             if (text.startsWith('/')) {
